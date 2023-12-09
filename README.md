@@ -22,7 +22,7 @@ To run this project on your local machine, follow these steps:
 
 ## How to View and Edit Project Code
 
-**Note:** RStudio is required for code editing. If you do not have RStudio downloaded on your computer, follow [these isntructions](https://rstudio-education.github.io/hopr/starting.html)
+**Note:** RStudio is required for code editing. If you do not have RStudio downloaded on your computer, follow [these instructions](https://rstudio-education.github.io/hopr/starting.html)
 
 1. In the same ZIP file that was downloaded and extracted, locate the CS544Final_Rao.Rmd file
 
