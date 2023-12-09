@@ -22,7 +22,7 @@ To run this project on your local machine, follow these steps:
 
 ## License
 
-This project is licensed under the [License Name] - see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the GPL-3.0 License
 
 ## Acknowledgements
 
