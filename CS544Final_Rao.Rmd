@@ -1,0 +1,644 @@
+---
+title: "College Major Popularity and Earnings Analysis"
+author: "Anchit Rao"
+output:
+  html_document:
+    fig_width: 8
+    code_folding: hide
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+```
+
+```{r echo=FALSE}
+
+# Import libraries to be used
+library(rmarkdown)
+library(plotly)
+library(forcats)
+
+# Define URL for CSV data set
+file_url = "https://raw.githubusercontent.com/fivethirtyeight/data/master/college-majors/recent-grads.csv"
+
+# Load data
+data <- read.csv(url(file_url))
+```
+
+# Details on Dataset
+
+This analysis will be on the earning potential of various college majors after graduation. The data is from the American Community Survey 2010-2012 Public Use Microdata Series. It contains data from a survey of college graduates and the majors they graduated in, along with the links to earning potential and their employment information. It spans 173 individual undergraduate majors across 16 major categories.
+
+```{r layout="l-body-outset"}
+
+# Display table with pagination to show data set
+paged_table(data, options = list(rows.print = 15, cols.print = 5))
+```
+
+# Primary Objectives
+
+-   Find out which major categories are the most popular among students
+-   Find the gender breakdown for each major category
+-   Find out which individual majors are the most popular (Top 15)
+-   Find the gender breakdown for both sets of major rankings
+-   Analyze the median earning potential across major categories
+-   Analyze the median earning potential for the Top 15 majors
+-   Analyze the distribution of median earnings across all majors
+-   Visualize the effect of taking different sample sizes has on the average median earnings
+-   Visualize the effect different sampling methods have on the average median earnings
+-   Analyze unemployment rates of Engineering and Computers & Mathematics majors
+
+# Major Category Analysis
+
+The following will be an analysis of the overall major categories with total students, gender breakdowns of each category.
+
+## Initial Hypotheses
+
+1.  The Social Sciences and Humanities will be the overall top categories as they are by far the most broad in scope, hence more majors would come under their umbrella. This would mean they would be over-represented in the data.
+
+2.  The Engineering, Computer Science, and Physical Sciences major categories are expected to be less popular because of their demanding coursework requirements
+
+3.  Women will be over-represented in the Social Sciences and Humanities, while Men will be over-represented in Engineering and Physical Science categories.
+
+## Most Popular Major Categories
+
+```{r echo=FALSE}
+
+# Create dataframe of total student count, total men, and total women for each major category
+major_category_totals <- data %>%
+  group_by(Major_category) %>%
+  summarise(Total_Students = sum(Total)) %>%
+  arrange(desc(Total_Students))
+
+# Create histogram to show total number of students in each major category
+major_category_hist <- major_category_totals %>%
+  plot_ly(x = ~Total_Students, 
+          y = ~Major_category, 
+          type = 'bar', 
+          orientation = 'h',
+          color = ~Major_category,
+          name = 'Total Students') %>%
+  layout(xaxis = list(title = 'Total Students', 
+                      range = c(0, 1400000), 
+                      tickvals = c(0, 250000, 500000, 750000, 1000000, 1250000), 
+                      ticktext = c('0', '250K', '500K', '750K', '1M', '1.25M')),
+         yaxis = list(title = '', 
+                      'categoryorder' = 'total ascending'),
+         showlegend = FALSE
+         )
+
+major_category_hist
+```
+
+### Findings
+
+-   Business is by far the most popular major category with approximately 1.3 million total students
+
+-   Humanities and Liberal Arts is the second highest (\~713,000) with noticeably more students than the third most popular category Education (\~559,000)
+
+-   Engineering being fourth in popularity was surprising to me, as I had expected less students to choose it due to the intensity of coursework
+
+-   Social Science is still in the Top 5 major categories but lacking in popularity compared to Business and the Humanities
+
+-   Interdisciplinary majors are the least popular, with only \~12,300 students
+
+## Major Category Gender Distribution
+
+```{r echo=FALSE}
+# Create new data frame to show total men and women for each major category
+major_category_gender_totals <- data %>%
+  group_by(Major_category) %>%
+  summarise(Total_Men = sum(Men), Total_Women = sum(Women))
+
+# Create a horizontal stacked bar chart
+major_category_gender_plot <- major_category_gender_totals %>%
+  plot_ly(x = ~Total_Men, 
+          y = ~Major_category, 
+          type = 'bar', 
+          name = 'Men', 
+          marker = list(color = 'skyblue')) %>%
+  add_trace(x = ~Total_Women, 
+            name = 'Women', 
+            marker = list(color = 'pink')) %>%
+  layout(xaxis = list(title = 'Total Students', 
+                      range = c(0, 1400000), 
+                      tickvals = seq(0, 1250000, by = 250000), 
+                      ticktext = c('0', '250K', '500K', '750K', '1M', '1.25M')),
+         barmode = 'stack',
+         yaxis = list(title = '', 
+                      'categoryorder' = 'total ascending'))
+
+# Display the stacked bar chart
+major_category_gender_plot
+```
+
+### Findings
+
+-   I was surprised that Business was quite equivalent, as I had thought more men would gravitate towards it than women
+
+-   My guess that women would be over-represented in the Humanities was correct (\~441,000 Women to \~273,000 Men)
+
+-   The split in the Social Science category was far more even than I thought it would be (\~273,000 Women to \~257,000 Men)
+
+-   I was correct in guessing that men would be over-represented in Engineering (\~408,000 Men to \~129,000 Women)
+
+-   I was surprised by the relatively even split in the Physical Sciences (\~95,000 Men to \~90,000 Women), as I had guessed that men would be over-represented in this field
+
+# Individual Major Analysis
+
+The following will be an analysis of the most popular majors, with total students and gender breakdown.
+
+## Initial Hypotheses
+
+1.  The majors from the Social Sciences or Humanities category will likely take up the most spots on the Top 15
+
+2.  The majors from the Engineering category will be underrepresented on the chart with only one or two being in the Top 15
+
+3.  Due to how unpopular the Computers and Mathematics major category was, I believe that none of those majors will be seen in the top 15
+
+4.  I feel that women will hold a majority of the top majors, due to the relatively even gender split in the Business major category, along with the majorities they hold in the Humanities, Education, Psychology and Social Work, and Health categories
+
+## Top 15 Majors Based on Total Students
+
+```{r echo = FALSE}
+majors_by_total_students <- data %>%
+  group_by(Major, Major_category) %>%
+  summarise(Total_Students = sum(Total)) %>%
+  arrange(desc(Total_Students))
+
+# Create data frame of Top 15 majors for plotting
+most_popular_majors <- head(majors_by_total_students, 15)
+
+# Create histogram plot of Top 15 majors by number of students
+most_popular_majors_hist <- most_popular_majors %>%
+  plot_ly(x = ~Total_Students, 
+          y = ~Major, 
+          type = 'bar', 
+          orientation = 'h',
+          color = ~Major_category,
+          name = ~Major_category, 
+          group = ~Major_category)
+
+most_popular_majors_hist <- most_popular_majors_hist %>%
+  layout(xaxis = list(title = 'Total Students', 
+                      range = c(0, 450000), 
+                      tickvals = seq(0, 450000, by = 50000), 
+                      ticktext = c('0', '50K', '100K', '150K', '200K', '250K', '300K', '350K', '400K', '450K'),
+                      tickangle = 60),
+         yaxis = list(title = '', 
+                      categoryorder = 'total ascending'),
+         showlegend = TRUE,
+         list(orientation = "v", y = 1.1, x = 0)
+         )
+
+most_popular_majors_hist
+```
+
+### Findings
+
+1.  Psychology is by far the most popular major with \~394,000 students
+
+2.  Contrary to my expectations, majors from the Social Sciences and Humanities did not hold a majority of the top 15 positions
+
+3.  There was more variety in the major category of the top 15 majors, but Business stands out with 5 positions out of 15, the most for any single major category
+
+-   This makes sense seeing as Business is the most popular major category among students
+
+4.  As I expected, no major from Computers and Mathematics were present in the top 15
+
+5.  I did not expect that no Engineering majors made it into the top 15 seeing as Engineering is the fourth most popular major category.
+
+## Gender Distribution for Top 15 Majors
+
+```{r echo=FALSE}
+# Create data frame of total men and women for each to
+most_popular_majors_gender <- data %>%
+  filter(Major %in% most_popular_majors$Major) %>%
+  group_by(Major, Major_category) %>%
+  summarise(Total_Students = sum(Total), Total_Men = sum(Men), Total_Women = sum(Women)) %>%
+  arrange(desc(Total_Students))
+
+
+# Step 3: Generate a horizontal stacked bar chart
+most_popular_majors_gender_plot <- most_popular_majors_gender %>%
+  plot_ly(x = ~Total_Men, 
+          y = ~Major, 
+          type = 'bar', 
+          name = 'Men', 
+          marker = list(color = 'skyblue')) %>%
+  add_trace(x = ~Total_Women, 
+            name = 'Women', 
+            marker = list(color = 'pink')) %>%
+  layout(xaxis = list(title = 'Total Students'),
+         barmode = 'stack',
+         yaxis = list(title = '', 
+                      'categoryorder' = 'total ascending'))
+
+# Display the stacked bar chart
+most_popular_majors_gender_plot
+```
+
+### Findings
+
+1.  Women are by and large the majority in:
+
+-   Psychology (\~307,000 Women to \~87,000 Men)
+-   Communications (\~143,000 Women to \~71,000 Men)
+-   Nursing (\~188,000 Women to \~22,000 Men)
+-   Elementary Education (\~158,000 Women to \~13,000 Men)
+-   General Education (\~117,000 Women to \~27,000 Men)
+
+2.  Among the top 15 majors, only in the Finance major do men have a significant majority (\~115,000 Men to \~59,000 Women)
+
+3.  The numbers are relatively even in the remaining majors, with Men and Women trading majority by small amounts
+
+4.  I had guessed that women would hold the majority among the most popular majors, and I was correct in my assumption
+
+-   Psychology and Social Work (Psychology), Health (Nursing), and Education (Elementary Education and General Education) were the specific fields I noted as most likely being mainly comprised of women
+
+# Median Earnings Analysis
+
+## Initial Hypotheses
+
+1.  Due to Business being the most popular major category, it will be in the Top 3 for earning potential
+
+2.  Engineering will most likely hold the top spot due to specialized fields paying well
+
+3.  Computers and Mathematics will be in the Top 3 due to high salaries in the IT/Tech sector
+
+4.  The most popular major categories other than Business will be on the lower paying side (median or below median)
+
+## Median Earnings By Major Category
+
+```{r echo=FALSE}
+# Create a data frame of median earnings for all majors in each category
+major_category_median_earnings <- data %>%
+  select(Major_category, Median) %>%
+  arrange(desc(Median))
+
+# Use fct_reorder to reorder Major_category based on Median earnings
+major_category_median_earnings$Major_category <- fct_reorder(major_category_median_earnings$Major_category,
+                                                             major_category_median_earnings$Median, 
+                                                             .desc = FALSE)
+
+# Create the box plot with the sorted categories
+major_category_median_earnings_plot <- major_category_median_earnings %>%
+  plot_ly(x = ~Median, 
+          y = ~Major_category, 
+          type = 'box',
+          orientation = 'h',
+          boxpoints = 'outliers',
+          color = ~Major_category) %>%
+  layout(xaxis = list(title = 'Median Earnings',
+                      range = c(0, 120000), 
+                      tickvals = seq(0, 120000, by = 20000), 
+                      ticktext = c('0', '$20,000', '$40,000', '$60,000', '$80,000', '$100,000', '$120,000'),
+                      categoryorder = 'total descending'),
+         yaxis = list(title = ''),
+         showlegend = FALSE)
+
+major_category_median_earnings_plot
+```
+
+### Findings
+
+1.  As I suspected, Engineering was at the very top of the list with the highest median pay among all major categories (\$57,000) with earnings ranging from \$50,000 at the 25th percentile, to \$60,000 at the 75th percentile.
+
+2.  As I predicted, Computers and Mathematics students earned the second highest median pay of \$45,000
+
+3.  Business, the most popular major category, earns a median pay of \$40,000 with earnings ranging from \$38,000 at the 25th percentile, \$47,750 at the 75th percentile, and a max of \$62,000
+
+4.  The lowest paying majors are in the Psychology and Social work category
+
+5.  The highest paying major (Petroleum Engineering, \$110,000) and the lowest paying major (Library Science, \$22,000) are both outliers
+
+## Median Earnings of Most Popular Majors
+
+```{r echo=FALSE}
+# Create a data frame of the median pay for every major in the Top 15 majors data frame
+most_popular_majors_median_earnings <- data %>%
+  filter(Major %in% most_popular_majors$Major) %>%
+  select(Major, Major_category, Median) %>%
+  arrange(desc(Median))
+
+# Create the box plot with sorted majors
+most_popular_majors_median_earnings_plot <- most_popular_majors_median_earnings %>%
+  plot_ly(x = ~Median, 
+          y = ~Major, 
+          type = 'bar',
+          orientation = 'h',
+          name = ~Major_category,
+          group = ~Major_category) %>%
+  layout(xaxis = list(title = 'Median Earnings',
+                      range = c(0, 60000), 
+                      tickvals = seq(0, 60000, by = 10000), 
+                      ticktext = c('0', '$10,000', '$20,000', '$30,000', '$40,000', '$50,000', '$60,000')),
+         yaxis = list(title = '',
+                      categoryorder = 'total ascending'),
+         showlegend = TRUE,
+         list(orientation = "v", y = 1.1, x = 0)
+        )
+
+most_popular_majors_median_earnings_plot
+```
+
+### Findings
+
+1.  Nursing has the highest median pay of \$48,000
+
+2.  All 5 of the Business majors are near the top of the median earnings chart with the lowest being Business Management and Administration (\$38,000) and the highest being Finance (\$47,000)
+
+3.  Psychology, despite being the most popular major, has the lowest median pay of \$31,500
+
+4.  As we saw in the previous major category median earnings chart, the Education, Humanities and Liberal Arts, and Psychology and Social Word categories are the lowest end of the chart , even though they are in the most popular majors list
+
+5.  I was surprised that the median earnings for Biology majors are not near the top of the chart, especially with it being a STEM field
+
+# Central Limit Theorem
+
+Here we will take a look into the median earnings distribution for the whole data set, along with the applicability of the Central Limit Theorem.
+
+## Median Earnings Distribution
+
+```{r echo=FALSE}
+# Create a kernel density plot for median earnings
+median_earnings_dist <- data %>%
+  plot_ly(x = ~Median, 
+          type = 'histogram',
+          histnorm = 'probability density') %>%
+  layout(xaxis = list(title = 'Median Earnings',
+                      range = c(0, 120000), 
+                      tickvals = seq(0, 120000, by = 20000), 
+                      ticktext = c('0', '$20,000', '$40,000', '$60,000', '$80,000', '$100,000', '$120,000')),
+         yaxis = list(title = 'Probability Density',
+                      range = c(0.000000, 0.000060),
+                      tickvals = seq(0.000000, 0.000060, by = 0.000010), 
+                      ticktext = c('0.000000', '0.000010', '0.000020', '0.000030', '0.000040', '0.000050', '0.000060'))
+         )
+
+median_earnings_dist
+
+```
+
+As can be seen in the distribution above, the median earnings seem to be normally distributed, as can be expected with earnings, it is skewed right by high earning majors like those in Engineering, Computers and Mathematics, and Business.
+
+```{r echo=FALSE}
+# Calculate the mean and std dev of the median earnings and round to nearest whole number
+mean_earnings <- round(mean(data$Median))
+std_dev_earnings <- round(sd(data$Median))
+
+cat("Mean Median Earnings: $", mean_earnings, "\n")
+cat("Standard Deviation: $", std_dev_earnings, "\n")
+```
+
+## Differing Sample Sizes
+
+This section will show the plots of different sample sizes and how they might affect the mean of the
+
+```{r echo=FALSE}
+# Set seed for reproducibility
+set.seed(9724)
+
+# Define number of samples
+samples <- 5000
+
+# Create a 2 x 2 grid of histograms
+par(mfrow = c(2, 2))
+
+# Generate 5000 samples of Median earnings
+sampled_medians <- sample(data$Median, 
+                          size = samples, 
+                          replace = TRUE)
+
+# Generate histograms for sample size 10
+sample_size_10 <- replicate(samples, {
+  sampled_data <- sample(sampled_medians, 
+                         size = 10, 
+                         replace = TRUE)
+  mean(sampled_data)
+})
+
+hist_plot_10 <- plot_ly(x = sample_size_10, 
+                        type = 'histogram',
+                        name = "Sample Size 10") %>%
+  layout(title = "Sample Size = 10", 
+         xaxis = list(title = 'Median Earnings'), 
+         yaxis = list(title = 'Frequency'))
+
+# Generate histograms for sample size 20
+sample_size_20 <- replicate(samples, {
+  sampled_data <- sample(sampled_medians, 
+                         size = 20, 
+                         replace = TRUE)
+  mean(sampled_data)
+})
+
+hist_plot_20 <- plot_ly(x = sample_size_20, 
+                        type = 'histogram', 
+                        name = "Sample Size 20") %>%
+  layout(title = "Sample Size = 20", 
+         xaxis = list(title = 'Median Earnings'), 
+         yaxis = list(title = 'Frequency'))
+
+# Generate histograms for sample size 30
+sample_size_30 <- replicate(samples, {
+  sampled_data <- sample(sampled_medians, 
+                         size = 30, 
+                         replace = TRUE)
+  mean(sampled_data)
+})
+
+hist_plot_30 <- plot_ly(x = sample_size_30, 
+                        type = 'histogram', 
+                        name = "Sample Size 30") %>%
+  layout(title = "Sample Size = 30", 
+         xaxis = list(title = 'Median Earnings'), 
+         yaxis = list(title = 'Frequency'))
+
+# Generate histograms for sample size 40
+sample_size_40 <- replicate(samples, {
+  sampled_data <- sample(sampled_medians, 
+                         size = 40, 
+                         replace = TRUE)
+  mean(sampled_data)
+})
+
+hist_plot_40 <- plot_ly(x = sample_size_40, 
+                        type = 'histogram', 
+                        name = "Sample Size 40") %>%
+  layout(title = "Sample Size = 40", 
+         xaxis = list(title = 'Median Earnings'), 
+         yaxis = list(title = 'Frequency'))
+
+# Reset layout
+par(mfrow = c(1, 1))
+
+# Create a subplot with a row of 2 x 2
+fig <- subplot(hist_plot_10, 
+               hist_plot_20, 
+               hist_plot_30, 
+               hist_plot_40, 
+               nrows = 2) %>%
+  layout(title = '')
+
+fig
+```
+
+```{r echo=FALSE}
+# Output the means and standard deviations of all the samples
+cat("Sample Size: 10", "\t", "Sample Mean: ", mean(sample_size_10), "\t", "SD: ", sd(sample_size_10), "\n")
+cat("Sample Size: 20", "\t", "Sample Mean: ", mean(sample_size_20), "\t", "SD: ", sd(sample_size_20), "\n")
+cat("Sample Size: 30", "\t", "Sample Mean: ", mean(sample_size_30), "\t", "SD: ", sd(sample_size_30), "\n")
+cat("Sample Size: 40", "\t", "Sample Mean: ", mean(sample_size_40), "\t", "SD: ", sd(sample_size_40), "\n")
+```
+
+### Findings
+
+As can be seen in the sample size plots above, the plots all look very similar to the overall median earning distribution with the average median earnings being \$40,151 . We can see that as the sample size increases, we notice that the sample mean distribution stays roughly the same and it moves towards the population mean of the data set.
+
+## Differing Sampling Method
+
+This section will
+
+```{r echo=FALSE}
+
+# Set seed for reproducibility
+set.seed(9724)
+
+# Define number of samples
+samples <- 5000
+
+# Define major categories to focus on
+common_major_categories <- c("Business", "Humanities & Liberal Arts", "Engineering", "Education", "Social Science")
+
+# Create a 2 x 2 grid of subplots
+par(mfrow = c(2, 2))
+
+# Create a variable to hold all Median data for data set
+population_data <- data$Median
+
+hist_population <- plot_ly(x = population_data, 
+                           type = 'histogram',
+                           name = 'Population') %>%
+  layout(title = "Probability Distribution (Whole Population)", 
+         xaxis = list(title = 'Median Earnings'), 
+         yaxis = list(title = 'Frequency'))
+
+# Simple Random Sampling
+sample_size_simple_random <- 1000
+
+simple_random_sample <- sample(population_data, 
+                               size = sample_size_simple_random,
+                               replace = TRUE)
+
+hist_simple_random <- plot_ly(x = simple_random_sample, 
+                              type = 'histogram',
+                              name = 'Simple Random') %>%
+  layout(title = "Simple Random Sampling", 
+         xaxis = list(title = 'Median Earnings'), 
+         yaxis = list(title = 'Frequency'))
+
+# Stratified Sampling
+
+stratified_sample <- numeric(0) # Create vector to hold values
+
+for (category in common_major_categories) {
+  category_data <- subset(data, Major_category == category)$Median
+  
+  sample_size_stratified <- 200
+  
+  stratified_sample <- c(stratified_sample, sample(category_data, 
+                                                   size = sample_size_stratified,
+                                                   replace = TRUE))
+}
+
+hist_stratified <- plot_ly(x = stratified_sample, 
+                           type = 'histogram',
+                           name = 'Stratified Sampling') %>%
+  layout(title = "Stratified Sampling", 
+         xaxis = list(title = 'Median Earnings'), 
+         yaxis = list(title = 'Frequency'))
+
+# Systematic Sampling
+systematic_sample <- population_data[seq(1, length(population_data), by = length(population_data) / sample_size_simple_random)]
+
+hist_systematic <- plot_ly(x = systematic_sample, 
+                           type = 'histogram',
+                           name = 'Systematic Sampling') %>%
+  layout(title = "Systematic Sampling", 
+         xaxis = list(title = 'Median Earnings'), 
+         yaxis = list(title = 'Frequency'))
+
+# Reset the layout
+par(mfrow = c(1, 1))
+
+# Create a subplot with a 2 x 2 grid
+subplot_grid <- subplot(hist_population, 
+                        hist_simple_random, 
+                        hist_stratified, 
+                        hist_systematic, 
+                        nrows = 2) %>%
+  layout(title = '')
+
+# Display the subplots
+subplot_grid
+
+```
+
+```{r echo=FALSE}
+# Output the means and standard deviations of all the samples
+cat("Overall Population", "\t", "Sample Mean:", round(mean(population_data)), "\t", "SD:", round(sd(population_data)), "\n")
+cat("Simple Random Sampling", "\t", "Sample Mean:", round(mean(simple_random_sample)), "\t", "SD:", round(sd(simple_random_sample)), "\n")
+cat("Stratified Sampling", "\t", "Sample Mean:", round(mean(stratified_sample)), "\t", "SD:", round(sd(stratified_sample)), "\n")
+cat("Systematic Sampling", "\t", "Sample Mean:", round(mean(systematic_sample)), "\t", "SD:", round(sd(systematic_sample)), "\n")
+```
+
+### Findings
+
+From the above charts with the different sampling methods we can see that with different sampling methods, we still see the mean sticking right around the \$40,000 range.
+
+# Data Wrangling
+
+This is the section where we use data wrangling techniques to analyze our dataset
+
+```{r echo=FALSE}
+
+# Import magrittr
+library(magrittr)
+
+# Create a data frame with the relevant information on unemployment by major
+unemployment_df <- data |>
+  filter(Major_category %in% c("Computers & Mathematics", "Engineering")) |>
+  select(Major, Major_category, Unemployment_rate) |>
+  arrange(desc(Unemployment_rate))
+
+# Create unemployment rate box plot by major category
+unemployment_rate_plot <- unemployment_df |>
+  plot_ly(x = ~Unemployment_rate, 
+          y = ~Major, 
+          type = 'bar',
+          orientation = 'h',
+          boxpoints = 'outliers',
+          color = ~Major_category,
+          name = ~Major_category) |>
+  layout(xaxis = list(title = 'Unemployment Rate',
+                      range = c(0, 0.20), 
+                      tickvals = seq(0, 0.20, by = 0.05), 
+                      categoryorder = 'total descending'),
+         yaxis = list(title = '',
+                      tickfont = list(size = 8),
+                      categoryorder = 'total ascending'),
+         showlegend = TRUE,
+         list(orientation = "v", y = 1.1, x = 0)
+         )
+
+unemployment_rate_plot
+```
+
+### Findings
+
+From the chart above, we can see that Nuclear Engineering majors have the highest unemployment rate (\~0.178), which makes sense due to the highly specialized nature of the field and what would most likely be in a market with limited opportunities. I was surprised to see that Mathematics and Computer Science majors had practically no unemployment, but with two very intensive quantitative STEM majors, a lot of opportunities would be available in many different fields. It looks like traditional Engineering majors face far less unemployment rates than those in Computers and Mathematics majors. I would have suspected the opposite to be true, given that software development jobs are ubiquitous, and seeing Computer Programming and Data Processing, so high up at a time when the Data Science craze was kicking off was surprising.
